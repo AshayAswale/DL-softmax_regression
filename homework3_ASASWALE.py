@@ -1,4 +1,7 @@
 # from matplotlib import pyplot as plt
+# from numba import jit, cuda 
+from numba import vectorize
+import numba
 import numpy as np
 import math
 import random 
@@ -13,9 +16,9 @@ def random_rearrange (X_tr, y_tr, seed):
     np.random.seed(seed)
     np.random.shuffle(y_tr)
 
-
+@numba.jit
 def getYHat(X_tr, y_tr, w, b):
-    Z_w = np.matmul(X_tr, w) 
+    Z_w = np.dot(X_tr, w) 
     Z = Z_w + b
     
     exp_z = np.exp(Z)
@@ -23,10 +26,10 @@ def getYHat(X_tr, y_tr, w, b):
     y_hat = (exp_z.T/exp_z_sums).T
     return y_hat
 
-
+@numba.jit
 def updateW(X_tr, y_hat, y_tr, w, eps, alpha):
     no_data = X_tr.shape[0]
-    f_grad = np.matmul(X_tr.T, (y_hat-y_tr))/no_data + alpha*w/no_data
+    f_grad = np.dot(X_tr.T, (y_hat-y_tr))/no_data + alpha*w/no_data
     w -= eps*f_grad
     return w
 
@@ -51,13 +54,17 @@ def training(X_tr, y_tr, w, b, n_squig, eps, alpha, epochs):
             # print(i)
             i+=1
             X_tr_temp = X_tr[n_curr:(min(n_next, no_data))]
+            y_tr_temp = y_tr[n_curr:(min(n_next, no_data))]
             n_curr = n_next
             n_next += n_squig
 
             data_remain = True if n_next<no_data else False
-            y_hat = getYHat(X_tr, y_tr, w, b)
-            w = updateW(X_tr, y_hat, y_tr, w, eps, alpha)
-            b = updateB(X_tr, y_hat, y_tr, b, eps)
+            # print("One")
+            y_hat = getYHat(X_tr_temp, y_tr_temp, w, b)
+            # print("Two")
+            w = updateW(X_tr_temp, y_hat, y_tr_temp, w, eps, alpha)
+            # print("Three")
+            b = updateB(X_tr_temp, y_hat, y_tr_temp, b, eps)
             
     return w,b
         
@@ -66,10 +73,10 @@ def double_cross_validation(X_tr, y_tr):
     no_data = X_tr.shape[0]
     no_features = X_tr.shape[1]
 
-    n_squig_set = np.array([68, 128])
-    eps_set = np.array([0.01, 0.005])
-    alpha_set = np.array([0.01, 0.1, 0.5])
-    epochs_set = np.array([5, 10, 30])
+    n_squig_set = np.array([16, 68, 128])
+    eps_set = np.array([0.01, 0.005, 0.001])
+    alpha_set = np.array([0.01, 0.1, 0.5, 1])
+    epochs_set = np.array([500])
     # 16 0.001 0.05 100
     # n_squig_set = np.array([10000, 50000])
     # eps_set = np.array([0.01])
@@ -127,9 +134,9 @@ def stoch_grad_regression (X_tr, y_tr):
         n_squig, eps, alpha, epochs = double_cross_validation(X_tr, y_tr)
     else:
         print("Training using pretuned hyperparameters")
-        n_squig, eps, alpha, epochs = 16, 0.001, 0.05, 100
+        n_squig, eps, alpha, epochs = 16, 0.01, 0.05, 500
 
-    print("New Params")
+    print("16, 0.01, 0.05, 500")
     w = np.random.rand(no_features, no_of_classes)
     b = np.random.rand(1, no_of_classes)
     w,b = training(X_tr, y_tr, w, b, n_squig, eps, alpha, epochs)
